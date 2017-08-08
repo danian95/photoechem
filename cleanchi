@@ -1,0 +1,4 @@
+#!/bin/bash
+#This script deletes all of the automatic segment analysis
+
+sed -i '/Segment 1:/,/Potential/ {/Potential/ !{d}}' "$@"

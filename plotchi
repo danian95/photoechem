@@ -1,0 +1,44 @@
+#!/bin/python
+
+# Import needed modules
+import numpy as np
+import argparse
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+
+# Add arguments
+parser = argparse.ArgumentParser(description='Plot data from CH Instruments potentiostat')
+parser.add_argument("-t", dest="title", help='Title plot')
+parser.add_argument("txtfile", nargs='+', help='Raw data file, ASCII format')
+parser.add_argument("-o", dest="outputfile", help='Save image to file')
+
+args = parser.parse_args()
+
+# Add a title to the plot
+if args.title:
+    title = args.title
+    plt.title(title)
+
+axes = plt.gca()
+
+# Plot the spectral response data
+colors = cm.rainbow(np.linspace(0, 1, len(args.eqe_file)))
+colorp = 0
+for data in args.txtfile:
+    for i, line in enumerate(data, 1):
+        if "Open Circuit Potential" in line:
+
+    resp = np.genfromtxt(eqe, delimiter="\t", names=['wavelength','','','','','EQE'])
+    plt.plot(resp['wavelength'], resp['EQE']*100, color=colors[colorp], linewidth=2.0, label=eqe)
+    colorp += 1
+
+# Label axes
+plt.xlabel(r'$\lambda$ / nm')
+plt.ylabel('EQE / %')
+plt.legend(loc='best',prop={'size':12})
+
+# Save to file or display
+if args.outputfile:
+    plt.savefig(args.outputfile, dpi=450, bbox_inches='tight')
+else:
+    plt.show()

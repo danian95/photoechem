@@ -1,0 +1,49 @@
+#!/bin/zsh
+
+# Init default variables
+tmpfile=/tmp/batchplot.tmp
+
+read "area?Sample area (cm^2)? [0.04]: "
+area=${area:-0.04}
+
+printf "Using %s cm^2 as electrode area.\n\n" "$area" | tee $tmpfile
+printf "Sample\tEpoch_Time/s\tDirection\tj_SC/mA.cm^-2\tV_OC/V\tP_t/mW.cm^-2\tP_max/mW.cm^-2\tFF\tPCE\n" | tee -a $tmpfile
+
+for light in *1\ sun*.cor; do
+	printf "Data: %s\n" "${light%,\	1\ sun*}"
+	_sample=${${light}%%.*}
+	_carbon=${${${light}#*.}%%,*}
+	_comments=${${${light}#*, }%,*.cor}
+	if [[ $light == *"run"* ]]; then
+		_run=.light_run${${${light}/*run /}/,*.cor/}
+	else
+		_run=""
+	fi
+	# If there are no dark runs, do not plot them
+#	if [[ ! -e ${light/1\ sun*/dark}*.cor ]]; then
+#		plotcv-corrw -s ${_sample} -C ${_carbon} -c ${_comments} \
+#			-l ${light} -a ${area} -z -p \
+#			-o ${_sample}.cv${_run}.png >> $tmpfile
+#		plotcv-corrw -s ${_sample} -C ${_carbon} -c ${_comments} \
+#			-l $light -a ${area} \
+#			-o ${_sample}.cv_full${_run}.png
+#	else
+		# Plot dark runs
+		for dark in ${light/1\ sun*/dark}*.cor; do
+			if [[ $dark == *"run"* ]]; then
+				_drun=.dark_run${${${dark}/*run /}/,*.cor/}
+			else
+				_drun=""
+			fi
+			plotcv-corrw -s ${_sample} -C ${_carbon} -c ${_comments} \
+				-l ${light} -d ${dark} -a ${area} -z -p \
+				-o ${_sample}.cv${_run}${_drun}.png >> $tmpfile
+			plotcv-corrw -s ${_sample} -C ${_carbon} -c ${_comments} \
+				-l $light -d ${dark} -a ${area} \
+				-o ${_sample}.cv_full${_run}${_drun}.png
+		done
+#	fi
+	printf "\n"
+done
+
+mv $tmpfile ./summary.txt

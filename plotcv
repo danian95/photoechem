@@ -1,0 +1,155 @@
+#!/bin/python
+
+# Import needed modules
+import numpy as np
+import argparse
+import matplotlib.pyplot as plt
+import os
+
+# Add arguments
+parser = argparse.ArgumentParser(description='Plot PSC CV data. This assumes WE on back contact, CE/REF shorted to FTO.')
+parser.add_argument("-C", "--carbon", dest="carbon", required=1, help='Carbon contact used')
+parser.add_argument("-s", "--sample", dest="sample", required=1, help='Sample number')
+parser.add_argument("-c", "--comments", dest="comments", help='Add comments to title')
+parser.add_argument("-l", "--light", dest="lightcv", help='Import light CV')
+parser.add_argument("-d", "--dark", dest="darkcv", help='Import dark CV')
+parser.add_argument("-z", "--zoom", action='store_true', dest="zoom", help='Plot only useful (+E,+i) region')
+parser.add_argument("-o", "--output", dest="outputfile", help='Save image to file')
+parser.add_argument("-a", "--area", dest="area", help='Electrode area in cm^2, defaults to 0.9694')
+parser.add_argument("-p", "--print", action='store_true', dest="printdata", help='Print parameters on graph')
+parser.add_argument("-P", "--power", dest="power", help='Set lamp power output in mW/cm^2, defaults to 100.')
+
+args = parser.parse_args()
+
+# Change electrode area from default of roughly 1 cm^2 (size of mask)
+if args.area:
+    area = float(args.area)
+else:
+    # area = 0.064516 # cm^2 Tianyue's devices
+    area = 0.025 # cm^2
+
+# Adjust input power from lamp
+if args.power:
+    power = float(args.area)
+else:
+    power = 100 # mW/cm^2
+
+# Add a title to the plot
+title = str(args.carbon) + " #" + str(args.sample)
+if args.comments:
+    title += ", " + str(args.comments)
+plt.title(title)
+
+axes = plt.gca()
+
+# Plot the light (1 sun spectrum)
+if args.lightcv:
+    # Get modified time
+    binname = args.lightcv.replace("txt", "bin")
+    time = os.path.getmtime(binname)
+
+    # Remove header
+    with open(args.lightcv) as light:
+        for i, line in enumerate(light, 1):
+            if "Potential/V" in line:
+                lheader = i + 1
+
+    light = np.genfromtxt(args.lightcv, delimiter=',', skip_header=lheader, names=['E','i'])
+    plt.plot(light['E'], light['i']/area/1e-3, color='b', linewidth=2.0, label='1 sun')
+
+    # Find E limit indices
+    poslim = np.where(light['E']==light['E'].max())[0][0]
+    neglim = np.where(light['E']==light['E'].min())[0][0]
+
+    # Determine scan direction
+    if poslim > neglim:
+        lforward = light[neglim:poslim]
+        lreverse = light[poslim:]
+    else:
+        lforward = light[:poslim]
+        lreverse = light[poslim:neglim]
+
+    # Calculate important parameters for forward scan
+    try:
+        fjsc = lforward['i'][np.where(abs(lforward['E'])==abs(lforward['E']).min())[0][0]]/area/1e-3 # mA/cm^2
+        fvoc = lforward['E'][np.where(abs(lforward['i'])==abs(lforward['i']).min())[0][0]] # V
+        fpt = fjsc*fvoc # mW/cm^2
+        fpmax = max(lforward['E']*lforward['i'])/area/1e-3 # mW/cm^2
+        fff = fpmax/fpt
+        fpce = fpmax/power
+        datablock = "Forward:\n$\mathregular{j_{SC}}$ = %.4f $\mathregular{mA.cm^{-2}}$\n$\mathregular{V_{OC}}$ = %.4f V\n$\mathregular{P_t}$ = %.4f $\mathregular{mW.cm^{-2}}$\n$\mathregular{P_{max}}$ = %.4f $\mathregular{mW.cm^{-2}}$\nFF = %.2f%%\nPCE = %.2f%%" %(fjsc,fvoc,fpt,fpmax,fff*100,fpce*100)
+    except (ValueError, TypeError):
+        print('Issue calculating forward FF')
+        fvoc_index = 0
+        fjsc = 0
+        fvoc = 0
+        fpt = 0
+        fpmax = 0
+        fff = 0
+        fpce = 0
+        datablock = "Forward calculation error."
+
+#    print("Forward\tj_SC/mA.cm^-2\tV_OC/V\tP_t/mW.cm^-2\tP_max/mW.cm^-2\tFF\tPCE")
+    print(args.sample, "%d" % time, "forward", "%.4f" % fjsc, "%.4f" % fvoc, "%.4f" % fpt, "%.4f" % fpmax, "%.4f" % fff, "%.4f" % fpce, sep='\t')
+   
+    # Calculate important paraments for reverse scan
+    try:
+        rjsc = lreverse['i'][np.where(abs(lreverse['E'])==abs(lreverse['E']).min())[0][0]]/area/1e-3 # mA/cm^2
+        rvoc = lreverse['E'][np.where(abs(lreverse['i'])==abs(lreverse['i']).min())[0][0]] # V
+        rpt = rjsc*rvoc # mW/cm^2
+        rpmax = max(lreverse['E']*lreverse['i'])/area/1e-3 # mW/cm^2
+        rff = rpmax/rpt
+        rpce = rpmax/power
+        datablock += "\n\nReverse:\n$\mathregular{j_{SC}}$ = %.4f $\mathregular{mA.cm^{-2}}$\n$\mathregular{V_{OC}}$ = %.4f V\n$\mathregular{P_t}$ = %.4f $\mathregular{mW.cm^{-2}}$\n$\mathregular{P_{max}}$ = %.4f $\mathregular{mW.cm^{-2}}$\nFF = %.2f%%\nPCE = %.2f%%" %(rjsc,rvoc,rpt,rpmax,rff*100,rpce*100)
+    except (ValueError, TypeError):
+        print('Issue calculating reverse FF')
+        rjsc = 0
+        rvoc = 0
+        rpt = 0
+        rpmax = 0
+        rff = 0
+        rpce = 0
+        datablock += "\n\nReverse calculation error."
+
+#    print("Reverse\tj_SC/mA.cm^-2\tV_OC/V\tP_t/mW.cm^-2\tP_max/mW.cm^-2\tFF\tPCE")
+    print(args.sample, "%d" % time, "reverse", "%.4f" % rjsc, "%.4f" % rvoc, "%.4f" % rpt, "%.4f" % rpmax, "%.4f" % rff, "%.4f" % rpce, sep='\t')
+ 
+
+# Plot the dark spectrum
+if args.darkcv:
+    # Remove header
+    with open(args.darkcv) as dark:
+        for i, line in enumerate(dark, 1):
+            if "Potential/V" in line:
+                dheader = i + 1
+    
+    dark = np.genfromtxt(args.darkcv, delimiter=',', skip_header=dheader, names=['E','i'])
+    plt.plot(dark['E'], dark['i']/area/1e-3, color='r', linewidth=2.0, label='dark')
+
+# Zoom to needed region, otherwise add dashed x/y axes at (0,0)
+if args.zoom:
+    maxx = max(fvoc,rvoc)
+    maxy = max(fjsc,rjsc)
+    axes.set_xlim(0,1.1*maxx)
+    axes.set_ylim(0,1.1*maxy)
+else:
+    plt.axhline(linewidth=0.5,color='black',linestyle='--')
+    plt.axvline(linewidth=0.5,color='black',linestyle='--')
+
+plt.gca().invert_xaxis()
+
+# Label axes
+plt.ylabel('j / $\mathregular{mA.cm^{-2}}$')
+plt.xlabel('E / V')
+plt.legend()
+
+# Add data info
+if args.printdata:
+    box = dict(boxstyle='round', facecolor='yellow', alpha=0.5)
+    plt.text(0.7,0.60,datablock,transform=axes.transAxes,fontsize=6,verticalalignment='top',bbox=box)
+
+# Save to file or display
+if args.outputfile:
+    plt.savefig(args.outputfile, dpi=450, bbox_inches='tight')
+else:
+    plt.show()

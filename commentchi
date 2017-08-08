@@ -1,0 +1,12 @@
+#!/bin/bash
+#This script adds a comment (#) before each line until the header
+
+case "$(sed -n '2p' "$@")" in
+	'Multi-Potential Steps'|'Bulk Electrolysis with Coulometry')
+		sed -i -e "1,/Current/ {/Current/ !{s/\(.*\)/# \1/}}" \
+			-e '/^\s$/d' "$@";
+		;;
+	*)	sed -i -e "1,/Potential/ {/Potential/ !{s/\(.*\)/# \1/}}" \
+			-e '/^\s$/d' "$@";
+		;;
+esac

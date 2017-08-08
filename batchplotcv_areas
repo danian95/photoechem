@@ -1,0 +1,37 @@
+#!/bin/zsh
+
+if [ $# -eq 0 ]; then
+	echo 'Filename needed for sample areas.'
+	echo 'Format:'
+	echo 'Sample	Area'
+	echo '10a	0.500'
+	exit 1
+else
+	_areasfile="$1"
+fi
+
+for light in *1\ sun*.txt; do
+	_sample=${${light}%%.*}
+	_carbon=${${${light}#*.}%%,*}
+	_comments=${${${light}#*, }%,*.txt}
+	_area=$(sed -n "s/${_sample}.//p" "${_areasfile}")
+	if [[ $light == *"run"* ]]; then
+		_run=.light_run${${${light}/*run /}/,*.txt/}
+	else
+		_run=""
+	fi
+	for dark in ${light/1\ sun*/dark}*.txt; do
+		if [[ $dark == *"run"* ]]; then
+			_drun=.dark_run${${${dark}/*run /}/,*.txt/}
+		else
+			_drun=""
+		fi
+		echo "$_sample area is $_area cm^2"
+		plotcv -s ${_sample} -C ${_carbon} -c ${_comments} \
+			-a ${_area} -l ${light} -d ${dark} -z -p \
+			-o ${_sample}.cv${_run}${_drun}.png
+		plotcv -s ${_sample} -C ${_carbon} -c ${_comments} \
+			-a ${_area} -l $light -d ${dark} \
+			-o ${_sample}.cv_full${_run}${_drun}.png
+	done
+done
